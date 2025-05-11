@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <thread>
 
-#include "timer.h"
+#include "ms-timer/timer.h"
 
 namespace skynet_ext {
 namespace ms_timer {
@@ -47,7 +47,7 @@ public:
 		return id_;
 	}
 	void SendRequest(RequestMsg *request, char type, int len);
-	int SetTimerFd(timespec *time);
+	int SetTimerFd(const timespec *time);
 
 private:
 	void poll();
