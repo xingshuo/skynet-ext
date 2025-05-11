@@ -7,12 +7,18 @@
 #include <algorithm>
 #include <vector>
 
+extern "C" {
+#include "skynet.h"
+#include "skynet_server.h"
+#include "skynet_mq.h"
+}
 
 namespace skynet_ext {
 namespace ms_timer {
 
 class Poller;
 struct RequestAddTimer;
+struct RequestDelTimer;
 
 enum TimerState {
 	PENDING,
@@ -27,20 +33,20 @@ struct TimerNode {
 	timespec timeout;
 	TimerState state;
 
-	TimerNode(uint32_t service_handle, int session, int count, uint32_t interval_ms, timespec *now);
-	void OnTimeout();
+	TimerNode(const RequestAddTimer *request, const timespec *now);
+	void OnTimeout(const timespec *now);
+
+	static uint64_t HashKey(uint32_t service_handle, int session) {
+		return (((uint64_t)service_handle) << 32) | (uint64_t)session;
+	};
 };
 
 class TimerPool {
 public:
-	TimerPool();
-	~TimerPool();
-
-	int CheckInit(Poller *poller, int id);
-	void Release(Poller *poller);
-	void AddTimer(Poller *poller, RequestAddTimer *request, timespec *now);
-	void DelTimer(int session);
-	void CheckTimeout(Poller *poller, timespec *now);
+	void AddTimer(Poller *poller, const RequestAddTimer *request, const timespec *now);
+	void DelTimer(Poller *poller, const RequestDelTimer *request);
+	void CheckTimeout(Poller *poller, const timespec *now);
+	void Release(const Poller *poller);
 
 private:
 	struct Comparator {
@@ -64,10 +70,8 @@ private:
 	}
 
 private:
-	int id_;
-	int timer_fd;
 	std::vector<TimerNode *> container;
-	std::unordered_map<int, TimerNode *> timer_nodes;
+	std::unordered_map<uint64_t, TimerNode *> timer_nodes;
 };
 
 } // namespace ms_timer

@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <thread>
+
 #include "timer.h"
 
 namespace skynet_ext {
@@ -33,32 +34,35 @@ struct RequestMsg {
 	} u;
 };
 
-#define TIMER_FD_NUM 64
 #define POLLER_EVENTS_MAX 64
+#define POLLER_BUFSIZE 128
 
 class Poller {
 public:
-	Poller(int poll_fd, int pipe_fds[2]);
+	Poller();
 	~Poller();
 
+	int Init(int id);
+	int ID() const {
+		return id_;
+	}
 	void SendRequest(RequestMsg *request, char type, int len);
-	int CreateTimerFd(TimerPool *pool);
-	int SetTimerFd(int timer_fd, timespec *time);
-	void CloseTimerFd(int timer_fd);
+	int SetTimerFd(timespec *time);
 
 private:
 	void poll();
 	int handlePipe(timespec *now);
 	void blockReadPipe(void *buffer, int sz);
-	void addTimer(RequestAddTimer *request, timespec *now);
-	void delTimer(RequestDelTimer *request, timespec *now);
 
 private:
-	int poll_fd;
+	int poll_fd_;
 	int pipe_rd;
 	int pipe_wr;
-	TimerPool timer_pool[TIMER_FD_NUM];
+	int timer_fd_;
+	TimerPool timer_pool;
 	std::thread thread_;
+	int id_;
+	bool is_polling;
 };
 
 } // namespace ms_timer
