@@ -3,13 +3,9 @@
 #include <cstring>
 #include <assert.h>
 #include <fcntl.h>
+
 #include "poller.h"
 #include "include/mstimer.h"
-
-extern "C" {
-struct skynet_context;
-void skynet_error(struct skynet_context* context, const char* msg, ...);
-}
 
 namespace skynet_ext {
 namespace ms_timer {
@@ -28,51 +24,139 @@ static inline int poller_add_fd(int pfd, int fd, uint32_t event, void *data)
 	return 0;
 }
 
-Poller::Poller(int poll_fd, int pipe_fds[2]) {
+Poller::Poller() {
 	skynet_error(nullptr, "ms-timer: ctor %p", this);
-	this->poll_fd = poll_fd;
-	pipe_rd = pipe_fds[0];
-	pipe_wr = pipe_fds[1];
-	thread_ = std::thread{&Poller::poll, this};
+	this->poll_fd_ = -1;
+	this->pipe_rd = -1;
+	this->pipe_wr = -1;
+	this->timer_fd_ = -1;
+	this->id_ = -1;
+	this->is_polling = false;
 }
 
 Poller::~Poller() {
-	skynet_error(nullptr, "ms-timer: dtor %p", this);
+	skynet_error(nullptr, "ms-timer: dtor %p id:%d", this, id_);
+	if (id_ == -1) {
+		return;
+	}
 	RequestMsg request;
 	SendRequest(&request, 'X', 0);
 	if (thread_.joinable()) {
 		thread_.join();
 	}
-	for (int i = 0; i < TIMER_FD_NUM; i++) {
-		timer_pool[i].Release(this);
+	is_polling = false;
+	// release timer nodes
+	timer_pool.Release(this);
+	// release timer fd
+	epoll_ctl(poll_fd_, EPOLL_CTL_DEL, timer_fd_, nullptr);
+	close(timer_fd_);
+	// release pipe
+	epoll_ctl(poll_fd_, EPOLL_CTL_DEL, pipe_rd, nullptr);
+	close(pipe_rd);
+	close(pipe_wr);
+	// release epoll fd
+	close(poll_fd_);
+	skynet_error(nullptr, "ms-timer: release %p id:%d", this, id_);
+	id_ = -1; // 防重入
+}
+
+int Poller::Init(int id) {
+	int poll_fd;
+	int timer_fd;
+	int pipe_fds[2]; // {rfd, wfd}
+	int ec = ErrCode::UNKNOWN_ERROR;
+	int32_t flags;
+	// init epoll fd
+	poll_fd = epoll_create(1024);
+	if (poll_fd < 0) {
+		skynet_error(nullptr, "ms-timer: poller %d create event pool failed.", id);
+		return ErrCode::POLLER_CREATE_ERROR;
 	}
+	// init pipe
+	if (pipe(pipe_fds)) {
+		skynet_error(nullptr, "ms-timer: poller %d create pipe pair failed.", id);
+		ec = ErrCode::PIPE_CREATE_ERROR;
+		goto _failed_init_pipe;
+	}
+	// add pipe read fd to epoll fd
+	if (poller_add_fd(poll_fd, pipe_fds[0], EPOLLIN, nullptr)) {
+		skynet_error(nullptr, "ms-timer: poller %d can't add pipe read fd to event pool.", id);
+		ec = ErrCode::POLLER_ADD_ERROR;
+		goto _failed_set_pipe;
+	}
+	// init timer fd
+	timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+	if (timer_fd < 0) {
+		skynet_error(nullptr, "ms-timer: poller %d create timerfd error %s", id, strerror(errno));
+		ec = ErrCode::TIMERFD_CREATE_ERROR;
+		goto _failed_init_timerfd;
+	}
+	// set timer fd noblocking 使用fcntl替代timerfd_create的第2个参数兼容内核版本
+	flags = fcntl(timer_fd, F_GETFL, 0);
+	flags < 0 ? flags = O_NONBLOCK : flags |= O_NONBLOCK;
+	if (fcntl(timer_fd, F_SETFL, flags) < 0) {
+		skynet_error(nullptr, "ms-timer: poller %d fcntl timerfd(%d) noblocking error %s", id, timer_fd, strerror(errno));
+		ec = ErrCode::TIMERFD_SET_NONBLOCK_ERROR;
+		goto _failed_set_timerfd;
+	}
+	// add timer fd to epoll fd
+	if (poller_add_fd(poll_fd, timer_fd, EPOLLIN | EPOLLET, this)) {
+		skynet_error(nullptr, "ms-timer: poller %d add timerfd(%d) to event pool error %s", id, timer_fd, strerror(errno));
+		ec = ErrCode::POLLER_ADD_ERROR;
+		goto _failed_set_timerfd;
+	}
+
+	this->id_ = id;
+	this->poll_fd_ = poll_fd;
+	this->pipe_rd = pipe_fds[0];
+	this->pipe_wr = pipe_fds[1];
+	this->timer_fd_ = timer_fd;
+	thread_ = std::thread{&Poller::poll, this};
+	while (!is_polling) {}
+	return ErrCode::OK;
+_failed_set_timerfd:
+	close(timer_fd);
+_failed_init_timerfd:
+	epoll_ctl(poll_fd, EPOLL_CTL_DEL, pipe_fds[0], nullptr);
+_failed_set_pipe:
+	close(pipe_fds[0]);
+	close(pipe_fds[1]);
+_failed_init_pipe:
 	close(poll_fd);
-	skynet_error(nullptr, "ms-timer: quit %p", this);
+	return ec;
 }
 
 void Poller::poll() {
-	skynet_error(nullptr, "ms-timer: start poll");
+	is_polling = true;
+	skynet_error(nullptr, "ms-timer: start poll %p id:%d", this, id_);
 	epoll_event events[POLLER_EVENTS_MAX];
+	char buf[POLLER_BUFSIZE];
 	timespec now;
+	int has_pipe_event;
+
 	while (1) {
-		int n = epoll_wait(poll_fd, events, POLLER_EVENTS_MAX, -1);
+		int n = epoll_wait(poll_fd_, events, POLLER_EVENTS_MAX, -1);
 		clock_gettime(CLOCK_MONOTONIC, &now);
+		has_pipe_event = 0;
 		for (int i = 0; i < n; i++) {
-			TimerPool *tp = (TimerPool *)events[i].data.ptr;
-			if (tp == nullptr) { // pipe read
-				if (handlePipe(&now)) {
-					skynet_error(nullptr, "ms-timer: quit poll");
-					return;
-				}
-			} else { // timer fd
-				tp->CheckTimeout(this, &now);
+			if (static_cast<Poller *>(events[i].data.ptr) == nullptr) {
+				has_pipe_event = 1;
+			} else {
+				while (read(timer_fd_, buf, POLLER_BUFSIZE) > 0) {}
+				timer_pool.CheckTimeout(this, &now);
+			}
+		}
+		if (has_pipe_event) {
+			if (handlePipe(&now)) {
+				skynet_error(nullptr, "ms-timer: quit poll id:%d", id_);
+				return;
 			}
 		}
 	}
 }
 
 void Poller::blockReadPipe(void *buffer, int sz) {
-	for (;;) {
+	while (1) {
 		int n = read(pipe_rd, buffer, sz);
 		if (n < 0) {
 			if (errno != EINTR) {
@@ -94,10 +178,10 @@ int Poller::handlePipe(timespec *now) {
 	blockReadPipe(buffer, len);
 	switch (type) {
 	case 'A':
-		addTimer((RequestAddTimer *)buffer, now);
+		timer_pool.AddTimer(this, reinterpret_cast<RequestAddTimer *>(buffer), now);
 		return 0;
 	case 'D':
-		delTimer((RequestDelTimer *)buffer, now);
+		timer_pool.DelTimer(this, reinterpret_cast<RequestDelTimer *>(buffer));
 		return 0;
 	case 'X':
 		skynet_error(nullptr, "ms-timer: recv quit cmd");
@@ -109,26 +193,11 @@ int Poller::handlePipe(timespec *now) {
 	return 1;
 }
 
-void Poller::addTimer(RequestAddTimer *request, timespec *now) {
-	int slot = request->service_handle % TIMER_FD_NUM;
-	TimerPool *pool = &timer_pool[slot];
-	if (pool->CheckInit(this, slot)) {
-		// TODO: 通知source service失败
-		return;
-	}
-	pool->AddTimer(this, request, now);
-}
-
-inline void Poller::delTimer(RequestDelTimer *request, timespec *now) {
-	int slot = request->service_handle % TIMER_FD_NUM;
-	timer_pool[slot].DelTimer(request->session);
-}
-
 void Poller::SendRequest(RequestMsg *request, char type, int len) {
 	request->header[6] = (uint8_t)type;
 	request->header[7] = (uint8_t)len;
 	const char *req = (const char *)request + offsetof(RequestMsg, header[6]);
-	for (;;) {
+	while (1) {
 		ssize_t n = write(pipe_wr, req, len+2);
 		if (n<0) {
 			if (errno != EINTR) {
@@ -141,101 +210,18 @@ void Poller::SendRequest(RequestMsg *request, char type, int len) {
 	}
 }
 
-int Poller::CreateTimerFd(TimerPool *pool) {
-	int fd = timerfd_create(CLOCK_MONOTONIC, 0);
-	if (fd < 0) {
-		skynet_error(nullptr, "ms-timer: create timerfd error %s", strerror(errno));
-		return ErrCode::TIMERFD_CREATE_ERROR;
-	}
-	int32_t flags = fcntl(fd, F_GETFL, 0);
-	flags < 0 ? flags = O_NONBLOCK : flags |= O_NONBLOCK;
-	if (fcntl(fd, F_SETFL, flags) < 0) {
-		close(fd);
-		skynet_error(nullptr, "ms-timer: fcntl timerfd(%d) noblocking error %s", fd, strerror(errno));
-		return ErrCode::TIMERFD_SET_NONBLOCK_ERROR;
-	}
-	if (poller_add_fd(poll_fd, fd, EPOLLIN | EPOLLET, pool)) {
-		close(fd);
-		skynet_error(nullptr, "ms-timer: add timerfd(%d) to event pool error %s", fd, strerror(errno));
-		return ErrCode::POLLER_ADD_ERROR;
-	}
-
-	return fd;
-}
-
-inline int Poller::SetTimerFd(int timer_fd, timespec *time) {
+int Poller::SetTimerFd(timespec *time) {
 	itimerspec timer = {
 		.it_interval = { },
 		.it_value =	*time
 	};
-	int ret = timerfd_settime(timer_fd, 0, &timer, nullptr);
+	skynet_error(nullptr, "ms-timer: timerfd %d settime (%ld, %ld)", timer_fd_, time->tv_sec, time->tv_nsec);
+	int ret = timerfd_settime(timer_fd_, 0, &timer, nullptr);
 	if (ret < 0) {
 		// TODO: 异常处理
-		skynet_error(nullptr, "ms-timer: timerfd %d settime (%ld,%ld) failed:%s", timer_fd, time->tv_sec, time->tv_nsec, strerror(errno));
+		skynet_error(nullptr, "ms-timer: timerfd %d settime (%ld, %ld) failed:%s", timer_fd_, time->tv_sec, time->tv_nsec, strerror(errno));
 	}
 	return ret;
-}
-
-inline void Poller::CloseTimerFd(int timer_fd) {
-	epoll_ctl(poll_fd, EPOLL_CTL_DEL, timer_fd, nullptr);
-	close(timer_fd);
-}
-
-static Poller *g_Poller = nullptr;
-
-int InitPoller() {
-	assert(g_Poller == nullptr);
-	int poll_fd = epoll_create(1024);
-	if (poll_fd < 0) {
-		skynet_error(nullptr, "ms-timer: create event pool failed.");
-		return ErrCode::POLLER_CREATE_ERROR;
-	}
-	int pipe_fds[2];
-	if (pipe(pipe_fds)) {
-		close(poll_fd);
-		skynet_error(nullptr, "ms-timer: create pipe pair failed.");
-		return ErrCode::PIPE_CREATE_ERROR;
-	}
-	if (poller_add_fd(poll_fd, pipe_fds[0], EPOLLIN, nullptr)) {
-		skynet_error(nullptr, "ms-timer: can't add pipe read fd to event pool.");
-		close(pipe_fds[0]);
-		close(pipe_fds[1]);
-		close(poll_fd);
-		return ErrCode::POLLER_ADD_ERROR;
-	}
-
-	g_Poller = new Poller(poll_fd, pipe_fds);
-	assert(g_Poller != nullptr);
-	return ErrCode::OK;
-}
-
-void ExitPoller() {
-	if (g_Poller != nullptr) {
-		delete g_Poller;
-		g_Poller = nullptr;
-	}
-}
-
-int StartTimer(uint32_t service_handle, int session, int count, uint32_t interval_ms) {
-	// TODO: 参数检查
-	RequestMsg request;
-	request.u.add = {
-		.service_handle = service_handle,
-		.session = session,
-		.count = count,
-		.interval_ms = interval_ms
-	};
-	g_Poller->SendRequest(&request, 'A', sizeof(request.u.add));
-	return 0;
-}
-
-void StopTimer(uint32_t service_handle, int session) {
-	RequestMsg request;
-	request.u.del = {
-		.service_handle = service_handle,
-		.session = session
-	};
-	g_Poller->SendRequest(&request, 'D', sizeof(request.u.del));
 }
 
 } // namespace ms_timer
