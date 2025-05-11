@@ -1,8 +1,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "timer.h"
-#include "poller.h"
+#include "ms-timer/timer.h"
+#include "ms-timer/poller.h"
 
 namespace skynet_ext {
 namespace ms_timer {
@@ -21,7 +21,7 @@ static int get_timeout_gap(timespec *gap, const timespec *now, const timespec *t
 	if (now->tv_sec > timeout->tv_sec || (now->tv_sec == timeout->tv_sec && now->tv_nsec >= timeout->tv_nsec)) {
 		// touch timeout at once
 		gap->tv_sec = 0;
-		gap->tv_nsec = 1; // Notice: 这里不能设置为0! 当timerfd_settime第三个参数it_value和it_interval都为0时, 会禁用定时器
+		gap->tv_nsec = 100000; // 0.1ms; Notice: 这里不能设置为0! 当timerfd_settime第三个参数it_value和it_interval都为0时, 会禁用定时器
 		return 1;
 	}
 	gap->tv_sec = timeout->tv_sec - now->tv_sec;

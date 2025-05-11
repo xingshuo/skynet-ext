@@ -4,8 +4,8 @@
 #include <assert.h>
 #include <fcntl.h>
 
-#include "poller.h"
-#include "include/mstimer.h"
+#include "ms-timer/error.h"
+#include "ms-timer/poller.h"
 
 namespace skynet_ext {
 namespace ms_timer {
@@ -210,7 +210,7 @@ void Poller::SendRequest(RequestMsg *request, char type, int len) {
 	}
 }
 
-int Poller::SetTimerFd(timespec *time) {
+int Poller::SetTimerFd(const timespec *time) {
 	itimerspec timer = {
 		.it_interval = { },
 		.it_value =	*time

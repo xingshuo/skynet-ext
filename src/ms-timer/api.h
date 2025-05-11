@@ -1,25 +1,11 @@
 #pragma once
 #include <stdint.h>
+#include "ms-timer/error.h"
 
 namespace skynet_ext {
 namespace ms_timer {
-	enum ErrCode {
-		OK					 = 0,
-		// errcode must be negative number!
-		POLLER_CREATE_ERROR	 = -1,
-		PIPE_CREATE_ERROR	 = -2,
-		POLLER_ADD_ERROR	 = -3,
-		TIMERFD_CREATE_ERROR = -4,
-		TIMERFD_SET_NONBLOCK_ERROR = -5,
-		API_PARAM1_ERROR = -6,
-		API_PARAM2_ERROR = -7,
-		API_PARAM3_ERROR = -8,
-		API_PARAM4_ERROR = -9,
-		UNKNOWN_ERROR = -10
-	};
-
 	/// @brief 初始化mpoller
-	/// @param nthreads 启动poller数, 每个poller绑定一个独立线程, 传0代表1
+	/// @param nthreads 启动poller数, 每个poller绑定一个独立线程, Notice: nthreads为0会强制设置为1
 	/// @return 0 成功 <0 失败, 详见: ErrCode
 	int InitPoller(uint32_t nthreads);
 

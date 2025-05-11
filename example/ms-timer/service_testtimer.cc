@@ -3,7 +3,7 @@
 #include <unistd.h>
 
 #include "service_testtimer.h"
-#include "include/mstimer.h"
+#include "ms-timer/api.h"
 
 
 TestApp::TestApp() {
