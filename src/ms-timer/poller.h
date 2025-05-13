@@ -62,7 +62,6 @@ private:
 	TimerPool timer_pool;
 	std::thread thread_;
 	int id_;
-	bool is_polling;
 };
 
 } // namespace ms_timer

@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "ms-timer/error.h"
+#include "ms-timer/common.h"
 
 namespace skynet_ext {
 namespace ms_timer {

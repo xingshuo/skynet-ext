@@ -1,0 +1,4 @@
+thread = 4
+harbor = 0
+bootstrap = "testtm"
+cpath = "./build/?.so;" .. "./skynet/cservice/?.so"
