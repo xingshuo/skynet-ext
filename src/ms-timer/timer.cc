@@ -51,8 +51,6 @@ TimerNode::TimerNode(const RequestAddTimer *request, const timespec *now) {
 }
 
 void TimerNode::OnTimeout(const timespec *now) {
-	timespec curtime;
-	clock_gettime(CLOCK_MONOTONIC, &curtime);
 	// dispatch timeout message to register service
 	skynet_message message;
 	message.source = 0;
@@ -60,7 +58,6 @@ void TimerNode::OnTimeout(const timespec *now) {
 	message.data = NULL;
 	message.sz = (size_t)PTYPE_RESPONSE << MESSAGE_TYPE_SHIFT;
 	skynet_context_push(this->service_handle, &message);
-	skynet_error(nullptr, "ms-timer: on timeout timer session %d at (%ld, %ld) curtime (%ld, %ld) dt:(%ld, %ld)", this->session, now->tv_sec, now->tv_nsec, curtime.tv_sec, curtime.tv_nsec, curtime.tv_sec-now->tv_sec, curtime.tv_nsec-now->tv_nsec);
 }
 
 
@@ -78,7 +75,9 @@ void TimerPool::AddTimer(Poller *poller, const RequestAddTimer *request, const t
 	TimerNode *node = new TimerNode(request, now);
 	timer_nodes[key] = node;
 	pushHeap(node);
+#if DEBUG_LOG_OUTPUT
 	skynet_error(nullptr, "ms-timer: timer pool %d addtimer session:%d node:%p at (%ld, %ld)", poller->ID(), node->session, node, now->tv_sec, now->tv_nsec);
+#endif
 	TimerNode *top = container.front();
 	timespec gap;
 	get_timeout_gap(&gap, now, &top->timeout);
@@ -94,7 +93,9 @@ void TimerPool::DelTimer(Poller *poller, const RequestDelTimer *request) {
 	}
 	TimerNode* node = iter->second;
 	node->state = TimerState::CANCELLED;
+#if DEBUG_LOG_OUTPUT
 	skynet_error(nullptr, "ms-timer: timer pool %d deltimer key:(%lu, %d) node:%p", poller->ID(), request->service_handle, request->session, node);
+#endif
 }
 
 void TimerPool::CheckTimeout(Poller *poller, const timespec *now) {
@@ -110,6 +111,11 @@ void TimerPool::CheckTimeout(Poller *poller, const timespec *now) {
 		if (timeout_cmp(&node->timeout, now) > 0) {
 			break;
 		}
+#if DEBUG_LOG_OUTPUT
+		timespec curtime;
+		clock_gettime(CLOCK_MONOTONIC, &curtime);
+		skynet_error(nullptr, "ms-timer: poller %d on timeout timer session %d at (%ld, %ld) curtime (%ld, %ld) dt:(%ld, %ld)", poller->ID(), node->session, now->tv_sec, now->tv_nsec, curtime.tv_sec, curtime.tv_nsec, curtime.tv_sec-now->tv_sec, curtime.tv_nsec-now->tv_nsec);
+#endif
 		node->OnTimeout(now);
 		popHeap();
 		if (node->count > 0) {

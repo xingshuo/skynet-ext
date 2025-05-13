@@ -3,9 +3,12 @@
 namespace skynet_ext {
 namespace ms_timer {
 
+#ifndef DEBUG_LOG_OUTPUT
+#define DEBUG_LOG_OUTPUT 0
+#endif
+
 enum ErrCode {
 	OK					 = 0,
-	// errcode must be negative number!
 	POLLER_CREATE_ERROR	 = -1,
 	PIPE_CREATE_ERROR	 = -2,
 	POLLER_ADD_ERROR	 = -3,

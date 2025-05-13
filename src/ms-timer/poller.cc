@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <fcntl.h>
 
-#include "ms-timer/error.h"
+#include "ms-timer/common.h"
 #include "ms-timer/poller.h"
 
 namespace skynet_ext {
@@ -31,7 +31,6 @@ Poller::Poller() {
 	this->pipe_wr = -1;
 	this->timer_fd_ = -1;
 	this->id_ = -1;
-	this->is_polling = false;
 }
 
 Poller::~Poller() {
@@ -44,7 +43,6 @@ Poller::~Poller() {
 	if (thread_.joinable()) {
 		thread_.join();
 	}
-	is_polling = false;
 	// release timer nodes
 	timer_pool.Release(this);
 	// release timer fd
@@ -57,7 +55,6 @@ Poller::~Poller() {
 	// release epoll fd
 	close(poll_fd_);
 	skynet_error(nullptr, "ms-timer: release %p id:%d", this, id_);
-	id_ = -1; // 防重入
 }
 
 int Poller::Init(int id) {
@@ -91,7 +88,8 @@ int Poller::Init(int id) {
 		ec = ErrCode::TIMERFD_CREATE_ERROR;
 		goto _failed_init_timerfd;
 	}
-	// set timer fd noblocking 使用fcntl替代timerfd_create的第2个参数兼容内核版本
+	// set timer fd noblocking
+	// 使用fcntl替代timerfd_create的第2个参数兼容内核版本
 	flags = fcntl(timer_fd, F_GETFL, 0);
 	flags < 0 ? flags = O_NONBLOCK : flags |= O_NONBLOCK;
 	if (fcntl(timer_fd, F_SETFL, flags) < 0) {
@@ -112,7 +110,6 @@ int Poller::Init(int id) {
 	this->pipe_wr = pipe_fds[1];
 	this->timer_fd_ = timer_fd;
 	thread_ = std::thread{&Poller::poll, this};
-	while (!is_polling) {}
 	return ErrCode::OK;
 _failed_set_timerfd:
 	close(timer_fd);
@@ -127,32 +124,36 @@ _failed_init_pipe:
 }
 
 void Poller::poll() {
-	is_polling = true;
-	skynet_error(nullptr, "ms-timer: start poll %p id:%d", this, id_);
+	skynet_error(nullptr, "ms-timer: poller %d %p", id_, this);
 	epoll_event events[POLLER_EVENTS_MAX];
 	char buf[POLLER_BUFSIZE];
 	timespec now;
 	int has_pipe_event;
+	int has_timer_event;
 
 	while (1) {
 		int n = epoll_wait(poll_fd_, events, POLLER_EVENTS_MAX, -1);
-		clock_gettime(CLOCK_MONOTONIC, &now);
 		has_pipe_event = 0;
+		has_timer_event = 0;
 		for (int i = 0; i < n; i++) {
 			if (static_cast<Poller *>(events[i].data.ptr) == nullptr) {
 				has_pipe_event = 1;
 			} else {
-				while (read(timer_fd_, buf, POLLER_BUFSIZE) > 0) {}
-				timer_pool.CheckTimeout(this, &now);
+				has_timer_event = 1;
 			}
+		}
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		if (has_timer_event) {
+			while (read(timer_fd_, buf, POLLER_BUFSIZE) > 0) {}
+			timer_pool.CheckTimeout(this, &now);
 		}
 		if (has_pipe_event) {
 			if (handlePipe(&now)) {
-				skynet_error(nullptr, "ms-timer: quit poll id:%d", id_);
-				return;
+				break;
 			}
 		}
 	}
+	skynet_error(nullptr, "ms-timer: poller %d quit polling", id_);
 }
 
 void Poller::blockReadPipe(void *buffer, int sz) {
@@ -184,10 +185,10 @@ int Poller::handlePipe(timespec *now) {
 		timer_pool.DelTimer(this, reinterpret_cast<RequestDelTimer *>(buffer));
 		return 0;
 	case 'X':
-		skynet_error(nullptr, "ms-timer: recv quit cmd");
+		skynet_error(nullptr, "ms-timer: poller %d recv quit cmd", id_);
 		return 1;
 	default:
-		skynet_error(nullptr, "ms-timer: unknown pipe cmd %c.",type);
+		skynet_error(nullptr, "ms-timer: poller %d unknown pipe cmd %c.", id_, type);
 		return 1;
 	}
 	return 1;
@@ -201,7 +202,7 @@ void Poller::SendRequest(RequestMsg *request, char type, int len) {
 		ssize_t n = write(pipe_wr, req, len+2);
 		if (n<0) {
 			if (errno != EINTR) {
-				skynet_error(nullptr, "ms-timer: send ctrl command error %s.", strerror(errno));
+				skynet_error(nullptr, "ms-timer: poller %d send ctrl command error %s.", id_, strerror(errno));
 			}
 			continue;
 		}
@@ -211,15 +212,17 @@ void Poller::SendRequest(RequestMsg *request, char type, int len) {
 }
 
 int Poller::SetTimerFd(const timespec *time) {
+#if DEBUG_LOG_OUTPUT
+	skynet_error(nullptr, "ms-timer: poller %d timerfd %d settime (%ld, %ld)", id_, timer_fd_, time->tv_sec, time->tv_nsec);
+#endif
 	itimerspec timer = {
 		.it_interval = { },
 		.it_value =	*time
 	};
-	skynet_error(nullptr, "ms-timer: timerfd %d settime (%ld, %ld)", timer_fd_, time->tv_sec, time->tv_nsec);
 	int ret = timerfd_settime(timer_fd_, 0, &timer, nullptr);
 	if (ret < 0) {
 		// TODO: 异常处理
-		skynet_error(nullptr, "ms-timer: timerfd %d settime (%ld, %ld) failed:%s", timer_fd_, time->tv_sec, time->tv_nsec, strerror(errno));
+		skynet_error(nullptr, "ms-timer: poller %d timerfd %d settime (%ld, %ld) failed:%s", id_, timer_fd_, time->tv_sec, time->tv_nsec, strerror(errno));
 	}
 	return ret;
 }
