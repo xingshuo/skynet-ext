@@ -8,10 +8,10 @@ namespace ms_timer {
 #endif
 
 enum ErrCode {
-	OK					 = 0,
-	POLLER_CREATE_ERROR	 = -1,
-	PIPE_CREATE_ERROR	 = -2,
-	POLLER_ADD_ERROR	 = -3,
+	OK = 0,
+	POLLER_CREATE_ERROR = -1,
+	PIPE_CREATE_ERROR = -2,
+	POLLER_ADD_ERROR = -3,
 	TIMERFD_CREATE_ERROR = -4,
 	TIMERFD_SET_NONBLOCK_ERROR = -5,
 	API_PARAM1_ERROR = -6,
