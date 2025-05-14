@@ -1,4 +1,4 @@
 thread = 4
 harbor = 0
-bootstrap = "testtm"
+bootstrap = "test_mstimer master"
 cpath = "./build/?.so;" .. "./skynet/cservice/?.so"

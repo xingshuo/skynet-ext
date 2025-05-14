@@ -12,14 +12,17 @@ struct SessionCtx {
 	int count;
 };
 
-struct TestApp {
+struct TestMSTimer {
 public:
-	TestApp();
-	~TestApp();
-
-	void Init(skynet_context *ctx);
+	void Init(skynet_context *ctx) {
+		m_ctx = ctx;
+	};
+	void RunTest();
 	void StartTimer(int session, int count, int interval_ms);
 	void OnCallback(int session);
+	const skynet_context *GetContext() {
+		return m_ctx;
+	}
 
 private:
 	skynet_context *m_ctx;

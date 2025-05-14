@@ -28,10 +28,10 @@ all: $(BUILD_DIR)/lmstimer.so
 $(BUILD_DIR)/lmstimer.so: binding/lua-mstimer.cc | $(MSTIMER_LIB)
 	$(CXX) $(CFLAGS) $(SHARED) -I$(PROJECT_SRC) -I$(SKYNET_DIR)/3rd/lua -L$(BUILD_DIR) -lmstimer -Wl,-rpath $(BUILD_DIR) $^ -o $@
 
-all: $(BUILD_DIR)/testtm.so
+all: $(BUILD_DIR)/test_mstimer.so
 
-$(BUILD_DIR)/testtm.so: example/ms-timer/*.cc | $(MSTIMER_LIB)
+$(BUILD_DIR)/test_mstimer.so: example/ms-timer/*.cc | $(MSTIMER_LIB)
 	$(CXX) $(CFLAGS) $(SHARED) -Iexample/ms-timer -I$(PROJECT_SRC) -I$(SKYNET_DIR)/skynet-src -L$(BUILD_DIR) -lmstimer -Wl,-rpath $(BUILD_DIR) $^ -o $@
 
 clean:
-	rm -f $(MSTIMER_LIB) $(BUILD_DIR)/testtm.so $(BUILD_DIR)/lmstimer.so
+	rm -rf build/

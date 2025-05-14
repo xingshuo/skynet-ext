@@ -103,6 +103,11 @@ void TimerPool::CheckTimeout(Poller *poller, const timespec *now) {
 		TimerNode *node = container.front();
 		uint64_t key = TimerNode::HashKey(node->service_handle, node->session);
 		if (node->state == TimerState::CANCELLED) {
+#if DEBUG_LOG_OUTPUT
+			timespec curtime;
+			clock_gettime(CLOCK_MONOTONIC, &curtime);
+			skynet_error(nullptr, "ms-timer: poller %d on cancelled timer node %p at (%ld, %ld) curtime (%ld, %ld) dt:(%ld, %ld)", poller->ID(), node, now->tv_sec, now->tv_nsec, curtime.tv_sec, curtime.tv_nsec, curtime.tv_sec-now->tv_sec, curtime.tv_nsec-now->tv_nsec);
+#endif
 			popHeap();
 			timer_nodes.erase(key);
 			delete node;
