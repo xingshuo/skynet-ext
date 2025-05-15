@@ -9,7 +9,7 @@
 * 基于linux平台提供的timerfd机制
 ```text
 通过启动参数控制创建多个poller, 每个poller绑定一个线程并通过epoll监听pipe的read fd和timer fd
-可读事件通知时, 更新定时器节点组成的PriorityQueue, 分发定时器事件并重新设置timerfd的timeout参数
+可读事件通知时, 更新定时器节点组成的PriorityQueue, 分发定时器事件并重新设置timer fd的timeout参数
 ```
 ![flowchart](https://github.com/xingshuo/skynet-ext/blob/main/doc/MSTimerArch.png)
 
