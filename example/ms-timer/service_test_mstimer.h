@@ -1,10 +1,9 @@
 #pragma once
-
 #include <unordered_map>
 
 extern "C" {
-#include "skynet.h"
 #include "skynet_server.h"
+#include "skynet.h"
 }
 
 struct SessionCtx {

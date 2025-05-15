@@ -2,6 +2,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <string.h>
+#include <cstdio>
 
 #include "service_test_mstimer.h"
 #include "ms-timer/api.h"
