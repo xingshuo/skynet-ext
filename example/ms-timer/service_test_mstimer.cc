@@ -65,7 +65,7 @@ void TestMSTimer::OnCallback(int session) {
 	}
 }
 
-extern "C" int
+static int
 _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
 	TestMSTimer *app = (TestMSTimer *)ud;
 	switch(type) {
