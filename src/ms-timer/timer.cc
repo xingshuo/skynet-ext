@@ -3,6 +3,7 @@
 
 #include "ms-timer/timer.h"
 #include "ms-timer/poller.h"
+#include "ms-timer/common.h"
 
 namespace skynet_ext {
 namespace ms_timer {
@@ -56,7 +57,7 @@ void TimerNode::OnTimeout(const timespec *now) {
 	message.source = 0;
 	message.session = this->session;
 	message.data = NULL;
-	message.sz = (size_t)PTYPE_RESPONSE << MESSAGE_TYPE_SHIFT;
+	message.sz = (size_t)PTYPE_MSTIMER << MESSAGE_TYPE_SHIFT;
 	skynet_context_push(this->service_handle, &message);
 }
 
