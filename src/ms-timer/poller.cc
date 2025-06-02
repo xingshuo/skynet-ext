@@ -3,6 +3,7 @@
 #include <cstring>
 #include <assert.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include "ms-timer/common.h"
 #include "ms-timer/poller.h"

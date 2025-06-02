@@ -62,9 +62,6 @@ void ExitPoller() {
 }
 
 int StartTimer(uint32_t service_handle, int session, int count, uint32_t interval_ms) {
-	if (session == 0) {
-		return ErrCode::API_PARAM2_ERROR;
-	}
 	if (interval_ms <= 0) {
 		return ErrCode::API_PARAM4_ERROR;
 	}
