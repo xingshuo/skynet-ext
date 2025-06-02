@@ -1,0 +1,9 @@
+thread = 4
+harbor = 0
+start = "test_main"
+lualoader = "./skynet/lualib/loader.lua"
+luaservice = "./example/signal/?.lua;" .. "./skynet/service/?.lua;" .. "./skynet/service/?/main.lua;"
+lua_path = "./src/signal/?.lua;" .. "./skynet/lualib/compat10/?.lua;" .. "./skynet/lualib/?.lua"
+lua_cpath = "./build/?.so;" .. "./skynet/luaclib/?.so"
+cpath = "./build/?.so;" .. "./skynet/cservice/?.so"
+debug_console_port = 8889
