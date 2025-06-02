@@ -1,6 +1,6 @@
 local Skynet = require "skynet"
 
-local PTYPE_SIGNAL = 16
+local PTYPE_SIGNAL = 17 -- must be same with define in `signal/service_signal_mgr.h`
 assert(Skynet[PTYPE_SIGNAL] == nil, "skynet protocol type conflict")
 
 -- Reference: https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/signals/
@@ -104,7 +104,7 @@ function M.RegSignalHandler(signum, handler)
 	assert(isLegalSignal(signum), signum)
 	local original = signalHandlers[signum]
 	signalHandlers[signum] = assert(handler, signum)
-	Skynet.send(".signal_mgr", "signal", "RegisterWatcher", signum)
+	Skynet.send(".signal-mgr", "signal", "RegisterWatcher", signum)
 	Skynet.error("register signal handler: ", signum)
 	return original
 end
@@ -115,7 +115,7 @@ function M.UnregSignalHandler(signum)
 		signalHandlers[signum] = nil
 	end
 	Skynet.error("unregister signal handler: ", signum)
-	Skynet.send(".signal_mgr", "signal", "UnregisterWatcher", signum)
+	Skynet.send(".signal-mgr", "signal", "UnregisterWatcher", signum)
 end
 
 function M.GetSignalName(signum)
