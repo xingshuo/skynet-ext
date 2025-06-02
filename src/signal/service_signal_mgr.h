@@ -25,7 +25,9 @@ extern "C" {
 namespace skynet_ext {
 namespace signal {
 
-static const int numSig = 65;
+// Reference: https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/signals/
+static const int kSigMin = 1;
+static const int kSigMax = 64;
 
 class SignalHandler {
 public:
@@ -34,15 +36,15 @@ public:
 	}
 
 	bool Get(int sig) const {
-		return (mask >> sig) & 1;
+		return (mask >> (sig-1)) & 1;
 	}
 
 	void Set(int sig) {
-		mask |= (((uint64_t)1) << sig);
+		mask |= (((uint64_t)1) << (sig-1));
 	}
 
 	void Clear(int sig) {
-		mask &= ~(((uint64_t)1) << sig);
+		mask &= ~(((uint64_t)1) << (sig-1));
 	}
 
 	bool IsEmpty() const {
@@ -63,16 +65,16 @@ public:
 	void OnSignalNotify(int sig);
 	void DispatchToWatchers(skynet_context *ctx, int sig);
 	int ReadSocketId() const {
-		return rd_socket_id;
+		return read_socket_id;
 	}
 
 private:
 	std::unordered_map<uint32_t, SignalHandler*> handlers;
-	int64_t ref[numSig];
+	int64_t ref[kSigMax + 1];
 	skynet_context *ctx;
 	int pipe_rd;
 	int pipe_wr;
-	int rd_socket_id;
+	int read_socket_id;
 };
 
 } // namespace signal

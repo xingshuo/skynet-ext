@@ -16,7 +16,7 @@ MSTIMER_SRC = $(PROJECT_SRC)/ms-timer
 MSTIMER_LIB = $(BUILD_DIR)/libmstimer.so
 
 SIGNAL_SRC = $(PROJECT_SRC)/signal
-SIGNAL_LIB = $(BUILD_DIR)/libsignal_mgr.so
+SIGNAL_LIB = $(BUILD_DIR)/signal_mgr.so
 
 all: build
 build:
