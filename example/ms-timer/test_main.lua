@@ -4,7 +4,7 @@ local Lmstimer = require "lmstimer"
 
 local cur_session = 0
 local timers_map = {}
-local PTYPE_MSTIMER = 16
+local PTYPE_MSTIMER = 16 -- must be same with define in `ms-timer/common.h`
 
 local function timer_timeout(ti, func, count, session)
 	assert(ti > 0)
