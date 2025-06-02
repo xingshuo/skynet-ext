@@ -4,6 +4,7 @@ local Lmstimer = require "lmstimer"
 
 local cur_session = 0
 local timers_map = {}
+local PTYPE_MSTIMER = 16
 
 local function timer_timeout(ti, func, count, session)
 	assert(ti > 0)
@@ -21,12 +22,11 @@ local function timer_timeout(ti, func, count, session)
 	return session
 end
 
-local old_unknown_response
 local function timer_callback(session, source, msg, sz)
-	print("on timer callback:", session, source)
+	Skynet.ignoreret()
+	print("on timer callback:", session, source,  msg, sz)
 	local ctx = timers_map[session]
 	if not ctx then
-		old_unknown_response(session, source, msg, sz)
 		return
 	end
 	if ctx.count > 0 then
@@ -39,15 +39,23 @@ local function timer_callback(session, source, msg, sz)
 	Skynet.fork(ctx.func)
 end
 
--- Black Tech, Only For Test!
-old_unknown_response = Skynet.dispatch_unknown_response(timer_callback)
-
 Skynet.start(function()
+	Skynet.register_protocol {
+		name = "mstimer",
+		id = PTYPE_MSTIMER,
+		pack = function (...) end,
+		unpack = function (...)
+			return ...
+		end,
+		dispatch = timer_callback,
+	}
+
 	print("====ErrCode dump begin!======")
 	for k,v in pairs(Lmstimer.ErrCode) do
 		print(k, " : ", v)
 	end
 	print("====ErrCode dump end!======")
+
 	local ret = Lmstimer.InitPoller(2)
 	assert(Lmstimer.ErrCode.OK == ret, "init poller failed:".. Lmstimer.ErrCode[ret])
 	local await_token = "qwerty"

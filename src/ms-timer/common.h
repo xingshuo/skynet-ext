@@ -7,6 +7,10 @@ namespace ms_timer {
 #define DEBUG_LOG_OUTPUT 0
 #endif
 
+#ifndef PTYPE_MSTIMER
+#define PTYPE_MSTIMER 16 // Notice: must be different with `PTYPE_XXX` defined in "skynet.h"
+#endif
+
 enum ErrCode {
 	OK = 0,
 	POLLER_CREATE_ERROR = -1,
