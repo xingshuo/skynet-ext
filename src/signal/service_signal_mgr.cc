@@ -15,7 +15,7 @@ SignalMngr::SignalMngr() {
 	ctx = nullptr;
 	pipe_rd = -1;
 	pipe_wr = -1;
-	rd_socket_id = -1;
+	read_socket_id = -1;
 }
 
 SignalMngr::~SignalMngr() {
@@ -29,9 +29,9 @@ SignalMngr::~SignalMngr() {
 	for (auto iter = watchers.begin(); iter != watchers.end(); iter++) {
 		UnregisterWatcher(*iter, 0);
 	}
-	if (rd_socket_id >= 0) {
-		skynet_socket_close(ctx, rd_socket_id);
-		rd_socket_id = -1;
+	if (read_socket_id >= 0) {
+		skynet_socket_close(ctx, read_socket_id);
+		read_socket_id = -1;
 	}
 	if (pipe_rd != -1) {
 		close(pipe_rd);
@@ -66,12 +66,12 @@ int SignalMngr::Init(skynet_context *ctx) {
 	this->ctx = ctx;
 	pipe_rd = pipe_fds[0];
 	pipe_wr = pipe_fds[1];
-	rd_socket_id = id;
+	read_socket_id = id;
 	return 0;
 }
 
 int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
-	if (sig <= 0 || sig >= numSig) {
+	if (sig < kSigMin || sig > kSigMax) {
 		skynet_error(ctx, "signal-mgr: register watcher error, service:%u sig:%d", service_handle, sig);
 		return -1;
 	}
@@ -96,10 +96,6 @@ int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 }
 
 void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
-	if (sig < 0 || sig >= numSig) {
-		skynet_error(ctx, "signal-mgr: unregister watcher error, service:%u sig:%d", service_handle, sig);
-		return;
-	}
 	auto iter = handlers.find(service_handle);
 	if (iter == handlers.end()) {
 		return;
@@ -107,7 +103,7 @@ void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
 	SignalHandler *h = iter->second;
 	if (sig == 0) { // 注销全部
 		handlers.erase(service_handle);
-		for (int n = 0; n < numSig; n++) {
+		for (int n = kSigMin; n <= kSigMax; n++) {
 			if (h->Get(n)) {
 				skynet_error(ctx, "signal-mgr: clear signal mask %d, %u, 0", n, service_handle);
 				if (--ref[n] == 0) {
@@ -119,6 +115,10 @@ void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
 		delete h;
 		skynet_error(ctx, "signal-mgr: delete watcher %u, 0", service_handle);
 	} else {
+		if (sig < kSigMin || sig > kSigMax) {
+			skynet_error(ctx, "signal-mgr: unregister watcher error, service:%u sig:%d", service_handle, sig);
+			return;
+		}
 		if (h->Get(sig)) {
 			h->Clear(sig);
 			skynet_error(ctx, "signal-mgr: clear signal mask %d, %u", sig, service_handle);
@@ -143,7 +143,7 @@ void SignalMngr::OnSignalNotify(int sig) {
 }
 
 void SignalMngr::DispatchToWatchers(skynet_context *ctx, int sig) {
-	if (sig <= 0 || sig >= numSig) {
+	if (sig < kSigMin || sig > kSigMax) {
 		skynet_error(ctx, "signal-mgr: dispatch to watchers error, sig:%d", sig);
 		return;
 	}
@@ -199,8 +199,7 @@ _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const
 		}
 		break;
 	}
-
-	};
+	}
 	return 0;
 }
 
