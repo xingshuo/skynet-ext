@@ -72,7 +72,7 @@ int SignalMngr::Init(skynet_context *ctx) {
 
 int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 	if (sig < kSigMin || sig > kSigMax) {
-		skynet_error(ctx, "signal-mgr: register watcher error, service:%u sig:%d", service_handle, sig);
+		skynet_error(ctx, "signal-mgr: register watcher error, [:%08x] sig:%d", service_handle, sig);
 		return -1;
 	}
 	SignalHandler *h = nullptr;
@@ -85,13 +85,13 @@ int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 	}
 	if (!h->Get(sig)) {
 		h->Set(sig);
-		skynet_error(ctx, "signal-mgr: set signal mask %d, %u", sig, service_handle);
+		skynet_error(ctx, "signal-mgr: set signal mask %d, [:%08x]", sig, service_handle);
 		if (ref[sig]++ == 0) {
 			std::signal(sig, signal_handler);
-			skynet_error(ctx, "signal-mgr: set signal handler %d, %u", sig, service_handle);
+			skynet_error(ctx, "signal-mgr: set signal handler %d, [:%08x]", sig, service_handle);
 		}
 	}
-	skynet_error(ctx, "signal-mgr: register watcher succ, service:%u sig:%d", service_handle, sig);
+	skynet_error(ctx, "signal-mgr: register watcher succ, [:%08x] sig:%d", service_handle, sig);
 	return 0;
 }
 
@@ -105,32 +105,32 @@ void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
 		handlers.erase(service_handle);
 		for (int n = kSigMin; n <= kSigMax; n++) {
 			if (h->Get(n)) {
-				skynet_error(ctx, "signal-mgr: clear signal mask %d, %u, 0", n, service_handle);
+				skynet_error(ctx, "signal-mgr: clear signal mask %d, [:%08x], 0", n, service_handle);
 				if (--ref[n] == 0) {
 					std::signal(n, SIG_DFL);
-					skynet_error(ctx, "signal-mgr: set signal default %d, %u, 0", n, service_handle);
+					skynet_error(ctx, "signal-mgr: set signal default %d, [:%08x], 0", n, service_handle);
 				}
 			}
 		}
 		delete h;
-		skynet_error(ctx, "signal-mgr: delete watcher %u, 0", service_handle);
+		skynet_error(ctx, "signal-mgr: delete watcher [:%08x], 0", service_handle);
 	} else {
 		if (sig < kSigMin || sig > kSigMax) {
-			skynet_error(ctx, "signal-mgr: unregister watcher error, service:%u sig:%d", service_handle, sig);
+			skynet_error(ctx, "signal-mgr: unregister watcher error, [:%08x] sig:%d", service_handle, sig);
 			return;
 		}
 		if (h->Get(sig)) {
 			h->Clear(sig);
-			skynet_error(ctx, "signal-mgr: clear signal mask %d, %u", sig, service_handle);
+			skynet_error(ctx, "signal-mgr: clear signal mask %d, [:%08x]", sig, service_handle);
 			if (--ref[sig] == 0) {
 				std::signal(sig, SIG_DFL);
-				skynet_error(ctx, "signal-mgr: set signal default %d, %u", sig, service_handle);
+				skynet_error(ctx, "signal-mgr: set signal default %d, [:%08x]", sig, service_handle);
 			}
 		}
 		if (h->IsEmpty()) {
 			handlers.erase(service_handle);
 			delete h;
-			skynet_error(ctx, "signal-mgr: delete watcher %u", service_handle);
+			skynet_error(ctx, "signal-mgr: delete watcher [:%08x]", service_handle);
 		}
 	}
 }
@@ -157,9 +157,19 @@ void SignalMngr::DispatchToWatchers(skynet_context *ctx, int sig) {
 			message.data = NULL;
 			message.sz = (size_t)sig | (size_t)PTYPE_SIGNAL << MESSAGE_TYPE_SHIFT;
 			skynet_context_push(service_handle, &message);
-			skynet_error(ctx, "signal-mgr: dispatch to watcher %u, sig:%d", service_handle, sig);
+			skynet_error(ctx, "signal-mgr: dispatch to watcher [:%08x], sig:%d", service_handle, sig);
 		}
 	}
+}
+
+void SignalMngr::DebugInfo() {
+	skynet_error(ctx, "signal-mgr: -----debug info start-----");
+	for (auto iter = handlers.begin(); iter != handlers.end(); iter++) {
+		uint32_t service_handle = iter->first;
+		SignalHandler *h = iter->second;
+		skynet_error(ctx, "signal-mgr: [:%08x] sigmask :%016x", service_handle, h->Mask());
+	}
+	skynet_error(ctx, "signal-mgr: -----debug info end-----");
 }
 
 
@@ -194,6 +204,8 @@ _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const
 		} else if (std::memcmp(command,"UnregisterWatcher",i) == 0) {
 			int sig = strtol(command+i+1, NULL, 10);
 			mgr->UnregisterWatcher(source, sig);
+		} else if (std::memcmp(command,"DebugInfo",i) == 0) {
+			mgr->DebugInfo();
 		} else {
 			skynet_error(ctx, "signal-mgr: unknown command %s", command);
 		}
