@@ -32,27 +32,31 @@ static const int kSigMax = 64;
 class SignalHandler {
 public:
 	SignalHandler() {
-		mask = 0;
+		mask_ = 0;
 	}
 
 	bool Get(int sig) const {
-		return (mask >> (sig-1)) & 1;
+		return (mask_ >> (sig-1)) & 1;
 	}
 
 	void Set(int sig) {
-		mask |= (((uint64_t)1) << (sig-1));
+		mask_ |= (((uint64_t)1) << (sig-1));
 	}
 
 	void Clear(int sig) {
-		mask &= ~(((uint64_t)1) << (sig-1));
+		mask_ &= ~(((uint64_t)1) << (sig-1));
 	}
 
 	bool IsEmpty() const {
-		return mask == 0;
+		return mask_ == 0;
+	}
+
+	uint64_t Mask() const {
+		return mask_;
 	}
 
 private:
-	uint64_t mask;
+	uint64_t mask_;
 };
 
 class SignalMngr {
@@ -67,6 +71,7 @@ public:
 	int ReadSocketId() const {
 		return read_socket_id;
 	}
+	void DebugInfo();
 
 private:
 	std::unordered_map<uint32_t, SignalHandler*> handlers;

@@ -86,7 +86,7 @@ local function dispatchSignal(session, source, msg, sz)
 	end
 end
 
-function M.RegSignalProtocol()
+function M.RegisterProtocol()
 	Skynet.register_protocol {
 		name = "signal",
 		id = PTYPE_SIGNAL,
@@ -100,7 +100,7 @@ function M.RegSignalProtocol()
 	}
 end
 
-function M.RegSignalHandler(signum, handler)
+function M.RegisterHandler(signum, handler)
 	assert(isLegalSignal(signum), signum)
 	local original = signalHandlers[signum]
 	signalHandlers[signum] = assert(handler, signum)
@@ -109,7 +109,7 @@ function M.RegSignalHandler(signum, handler)
 	return original
 end
 
-function M.UnregSignalHandler(signum)
+function M.UnregisterHandler(signum)
 	signum = signum or 0
 	if signalHandlers[signum] then
 		signalHandlers[signum] = nil
@@ -118,12 +118,16 @@ function M.UnregSignalHandler(signum)
 	Skynet.send(".signal-mgr", "signal", "UnregisterWatcher", signum)
 end
 
-function M.GetSignalName(signum)
+function M.GetName(signum)
 	for name, val in pairs(SignalTable) do
 		if signum == val then
 			return name
 		end
 	end
+end
+
+function M.DebugInfo()
+	Skynet.send(".signal-mgr", "signal", "DebugInfo")
 end
 
 return M
