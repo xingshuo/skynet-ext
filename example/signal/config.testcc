@@ -1,0 +1,4 @@
+thread = 4
+harbor = 0
+bootstrap = "test_signal master"
+cpath = "./build/?.so;" .. "./skynet/cservice/?.so"

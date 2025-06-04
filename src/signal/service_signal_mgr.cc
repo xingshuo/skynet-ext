@@ -1,4 +1,5 @@
 #include "signal/service_signal_mgr.h"
+#include "signal/common.h"
 
 namespace skynet_ext {
 namespace signal {
@@ -47,19 +48,19 @@ int SignalMngr::Init(skynet_context *ctx) {
 	int pipe_fds[2]; // {rfd, wfd}
 	if (pipe(pipe_fds)) {
 		skynet_error(ctx, "signal-mgr: create pipe failed.");
-		return -1;
+		return ErrCode::PIPE_CREATE_ERROR;
 	}
 	// FIXME: pipe_wr是否需要设置成非阻塞?
 	int32_t flags = fcntl(pipe_fds[1], F_GETFL, 0);
 	flags < 0 ? flags = O_NONBLOCK : flags |= O_NONBLOCK;
 	if (fcntl(pipe_fds[1], F_SETFL, flags) < 0) {
 		skynet_error(ctx, "signal-mgr: fcntl pipe write fd(%d) noblocking error %s", pipe_fds[1], strerror(errno));
-		return -2;
+		return ErrCode::FD_SET_NONBLOCK_ERROR;
 	}
 	int id = skynet_socket_bind(ctx, pipe_fds[0]);
 	if (id < 0) {
 		skynet_error(ctx, "signal-mgr: skynet socket bind error fd(%d)", pipe_fds[0]);
-		return -3;
+		return ErrCode::SKYNET_SOCKET_BIND_ERROR;
 	}
 	skynet_error(ctx, "signal-mgr: skynet socket bind pipe readfd %d to %d", pipe_fds[0], id);
 
@@ -67,13 +68,13 @@ int SignalMngr::Init(skynet_context *ctx) {
 	pipe_rd = pipe_fds[0];
 	pipe_wr = pipe_fds[1];
 	read_socket_id = id;
-	return 0;
+	return ErrCode::OK;
 }
 
 int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 	if (sig < kSigMin || sig > kSigMax) {
 		skynet_error(ctx, "signal-mgr: register watcher error, [:%08x] sig:%d", service_handle, sig);
-		return -1;
+		return ErrCode::SIGNAL_NUM_ERROR;
 	}
 	SignalHandler *h = nullptr;
 	auto iter = handlers.find(service_handle);
@@ -92,7 +93,7 @@ int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 		}
 	}
 	skynet_error(ctx, "signal-mgr: register watcher succ, [:%08x] sig:%d", service_handle, sig);
-	return 0;
+	return ErrCode::OK;
 }
 
 void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
