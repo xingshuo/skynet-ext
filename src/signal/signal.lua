@@ -1,6 +1,6 @@
 local Skynet = require "skynet"
 
-local PTYPE_SIGNAL = 17 -- must be same with define in `signal/service_signal_mgr.h`
+local PTYPE_SIGNAL = 17 -- must be same with define in `signal/common.h`
 assert(Skynet[PTYPE_SIGNAL] == nil, "skynet protocol type conflict")
 
 -- Reference: https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/signals/

@@ -42,5 +42,10 @@ all: $(SIGNAL_LIB)
 $(SIGNAL_LIB): $(SIGNAL_SRC)/*.cc
 	$(CXX) $(CFLAGS) $(SHARED) -I$(PROJECT_SRC) -I$(SKYNET_DIR)/skynet-src $^ -o $@
 
+all: $(BUILD_DIR)/test_signal.so
+
+$(BUILD_DIR)/test_signal.so: example/signal/*.cc
+	$(CXX) $(CFLAGS) $(SHARED) -Iexample/signal -I$(PROJECT_SRC) -I$(SKYNET_DIR)/skynet-src $^ -o $@
+
 clean:
 	rm -rf build/

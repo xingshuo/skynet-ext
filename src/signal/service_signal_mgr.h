@@ -18,10 +18,6 @@ extern "C" {
 #include "skynet_mq.h"
 }
 
-#ifndef PTYPE_SIGNAL
-#define PTYPE_SIGNAL 17 // Notice: must be different with `PTYPE_XXX` defined in "skynet.h"
-#endif
-
 namespace skynet_ext {
 namespace signal {
 
