@@ -1,7 +1,7 @@
 ## Service信号捕获机制
 
 ## 实现原理
-* TODO
+![flowchart](https://github.com/xingshuo/skynet-ext/blob/main/doc/SignalArch.png)
 
 ## 编译 && 运行示例
 * 将编译后的skynet仓库连接到工程目录下
