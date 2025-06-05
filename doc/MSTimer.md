@@ -19,17 +19,17 @@
 ## 编译 && 运行示例
 * 将编译后的skynet仓库连接到工程目录下
 ```bash
-# ln -sf $YOUR_SKYNET_PATH skynet
+ln -sf $YOUR_SKYNET_PATH skynet
 ```
 * 编译相关动态库
 ```bash
-# make clean && make
+make clean && make
 ```
 * 运行lua api测试用例
 ```bash
-# ./skynet/skynet example/ms-timer/config.testlua
+./skynet/skynet example/ms-timer/config.testlua
 ```
 * 运行c++ api测试用例
 ```bash
-# ./skynet/skynet example/ms-timer/config.testcc
+./skynet/skynet example/ms-timer/config.testcc
 ```
