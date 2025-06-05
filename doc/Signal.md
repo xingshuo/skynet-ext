@@ -1,4 +1,4 @@
-## Service信号捕获机制
+## Service信号捕获
 
 ## 实现原理
 ![flowchart](https://github.com/xingshuo/skynet-ext/blob/main/doc/SignalArch.png)
