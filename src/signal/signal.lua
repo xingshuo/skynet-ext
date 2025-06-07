@@ -35,7 +35,7 @@ local SignalTable = {
 	SIGPROF = 27,
 	SIGWINCH = 28,
 	SIGIO = 29,
-	SIGPOLL = 29, -- equal to SIGIO
+	SIGPOLL = 29,
 	SIGPWR = 30,
 	SIGSYS = 31,
 }
@@ -110,12 +110,17 @@ function M.RegisterHandler(signum, handler)
 end
 
 function M.UnregisterHandler(signum)
-	signum = signum or 0
 	if signalHandlers[signum] then
 		signalHandlers[signum] = nil
+		Skynet.error("unregister signal handler: ", signum)
+		Skynet.send(".signal-mgr", "signal", "UnregisterWatcher", signum)
 	end
-	Skynet.error("unregister signal handler: ", signum)
-	Skynet.send(".signal-mgr", "signal", "UnregisterWatcher", signum)
+end
+
+function M.UnregisterAllHandlers()
+	signalHandlers = {}
+	Skynet.error("unregister all signal handler")
+	Skynet.send(".signal-mgr", "signal", "UnregisterWatcher", 0)
 end
 
 function M.GetName(signum)
