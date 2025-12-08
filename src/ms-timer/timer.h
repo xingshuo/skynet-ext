@@ -29,7 +29,7 @@ struct TimerNode {
 	uint32_t service_handle;
 	int session;
 	int count; // > 0 有限次
-	uint32_t interval_ms;
+	int64_t interval_ns;
 	timespec timeout;
 	TimerState state;
 

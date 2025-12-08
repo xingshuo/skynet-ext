@@ -12,13 +12,13 @@ namespace ms_timer {
 	/// @brief 释放mpoller
 	void ExitPoller();
 
-	/// @brief 创建定时器
+	/// @brief 创建纳秒级定时器
 	/// @param service_handle 定时器触发回调服务地址
 	/// @param session 定时器唯一标识, <service_handle, session>唯一
 	/// @param count 定时器触发次数: count <= 0永久, count > 0有限次
-	/// @param interval_ms 定时器触发间隔: > 0
+	/// @param interval_ns 定时器触发间隔: > 0
 	/// @return 0 成功 <0 失败, 详见: ErrCode
-	int StartTimer(uint32_t service_handle, int session, int count, uint32_t interval_ms);
+	int StartTimer(uint32_t service_handle, int session, int count, int64_t interval_ns);
 
 	/// @brief 销毁定时器
 	/// @param service_handle 定时器触发回调服务地址

@@ -34,7 +34,7 @@ void TestMSTimer::RunTest() {
 void TestMSTimer::StartTimer(int session, int count, int interval_ms) {
 	timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	skynet_ext::ms_timer::StartTimer(skynet_context_handle(m_ctx), session, count, interval_ms);
+	skynet_ext::ms_timer::StartTimer(skynet_context_handle(m_ctx), session, count, (int64_t)interval_ms * 1000000);
 	skynet_error(m_ctx, "test-mstimer: start timer session: %d interval: %dms at (%lds, %ldns) count: %d", session, interval_ms, now.tv_sec, now.tv_nsec, count);
 	m_sessions[session] = {now, count};
 }

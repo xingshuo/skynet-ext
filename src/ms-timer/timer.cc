@@ -8,10 +8,10 @@
 namespace skynet_ext {
 namespace ms_timer {
 
-static void get_timeout(timespec *timeout, const timespec *now, int delta_ms) {
+static void get_timeout(timespec *timeout, const timespec *now, int64_t delta_ns) {
 	*timeout = *now;
-	timeout->tv_sec += delta_ms / 1000;
-	timeout->tv_nsec += delta_ms % 1000 * 1000000;
+	timeout->tv_sec += delta_ns / 1000000000;
+	timeout->tv_nsec += delta_ns % 1000000000;
 	if (timeout->tv_nsec >= 1000000000) {
 		timeout->tv_nsec -= 1000000000;
 		timeout->tv_sec++;
@@ -47,8 +47,8 @@ TimerNode::TimerNode(const RequestAddTimer *request, const timespec *now) {
 	this->service_handle = request->service_handle;
 	this->session = request->session;
 	this->count = request->count;
-	this->interval_ms = request->interval_ms;
-	get_timeout(&this->timeout, now, this->interval_ms);
+	this->interval_ns = request->interval_ns;
+	get_timeout(&this->timeout, now, this->interval_ns);
 }
 
 void TimerNode::OnTimeout(const timespec *now) {
@@ -129,11 +129,11 @@ void TimerPool::CheckTimeout(Poller *poller, const timespec *now) {
 				timer_nodes.erase(key);
 				delete node;
 			} else {
-				get_timeout(&node->timeout, now, node->interval_ms);
+				get_timeout(&node->timeout, now, node->interval_ns);
 				pushHeap(node);
 			}
 		} else {
-			get_timeout(&node->timeout, now, node->interval_ms);
+			get_timeout(&node->timeout, now, node->interval_ns);
 			pushHeap(node);
 		}
 	}

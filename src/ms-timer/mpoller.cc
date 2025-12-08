@@ -61,8 +61,9 @@ void ExitPoller() {
 	}
 }
 
-int StartTimer(uint32_t service_handle, int session, int count, uint32_t interval_ms) {
-	if (interval_ms <= 0) {
+int StartTimer(uint32_t service_handle, int session, int count, int64_t interval_ns) {
+	if (interval_ns <= 0) {
+		skynet_error(nullptr, "ms-timer: invalid ns interval (%ld) node:(%u, %d)", interval_ns, service_handle, session);
 		return ErrCode::API_PARAM4_ERROR;
 	}
 	RequestMsg request;
@@ -70,7 +71,7 @@ int StartTimer(uint32_t service_handle, int session, int count, uint32_t interva
 		.service_handle = service_handle,
 		.session = session,
 		.count = count,
-		.interval_ms = interval_ms
+		.interval_ns = interval_ns
 	};
 
 	int index = service_handle % mpoller->nthreads_;

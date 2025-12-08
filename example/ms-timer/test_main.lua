@@ -16,7 +16,7 @@ local function timer_timeout(ti, func, count, session)
 		end
 		session = cur_session
 	end
-	local ret = Lmstimer.StartTimer(Skynet.self(), session, count, ti)
+	local ret = Lmstimer.StartMSTimer(Skynet.self(), session, count, ti)
 	assert(Lmstimer.ErrCode.OK == ret, "timeout failed:".. Lmstimer.ErrCode[ret])
 	timers_map[session] = {func = func, count = count}
 	return session
@@ -24,7 +24,7 @@ end
 
 local function timer_callback(session, source, msg, sz)
 	Skynet.ignoreret()
-	print("on timer callback:", session, source,  msg, sz)
+	print("on timer callback:", session, source,  msg, sz, Skynet.now())
 	local ctx = timers_map[session]
 	if not ctx then
 		return
@@ -61,22 +61,23 @@ Skynet.start(function()
 	local await_token = "qwerty"
 	local count = 0
 	local session
+	print("=====Start all timer======", Skynet.now())
 	session = timer_timeout(30, function ()
 		count = count + 1
-		print("timeout: aaaa ", count, session)
+		print("timeout: aaaa ", count, session, Skynet.now())
 		if count >= 2 then
 			-- test remove timer
 			Lmstimer.StopTimer(Skynet.self(), session)
 
 			local session2
 			session2 = timer_timeout(1000, function()
-				print("timeout: bbbb", session2)
+				print("timeout: bbbb", session2, Skynet.now())
 				Skynet.wakeup(await_token)
 			end)
 
 			-- for repeat session test
 			timer_timeout(50, function()
-				print("timeout: cccc", session2)
+				print("timeout: cccc", session2, Skynet.now())
 				Skynet.wakeup(await_token)
 			end, 1, session2)
 		end
