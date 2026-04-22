@@ -176,6 +176,7 @@ void SignalMngr::DebugInfo() {
 
 static int
 _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
+	(void)session;
 	SignalMngr *mgr = static_cast<SignalMngr *>(ud);
 	switch(type) {
 	case PTYPE_SOCKET: {
@@ -195,7 +196,7 @@ _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const
 		const char *command = static_cast<const char *>(msg);
 		int i;
 		for (i = 0; i < (int)sz; i++) {
-			if (command[i]==' ') {
+			if (command[i] == ' ') {
 				break;
 			}
 		}
@@ -225,7 +226,7 @@ signal_mgr_create(void) {
 
 extern "C" void
 signal_mgr_release(SignalMngr *mgr) {
-	if (signal_mgr != nullptr) {
+	if (signal_mgr == mgr) {
 		delete signal_mgr;
 		signal_mgr = nullptr;
 	}
@@ -233,6 +234,7 @@ signal_mgr_release(SignalMngr *mgr) {
 
 extern "C" int
 signal_mgr_init(SignalMngr *mgr, skynet_context *ctx, char *parm) {
+	(void)parm;
 	assert(mgr == signal_mgr);
 	int ret = signal_mgr->Init(ctx);
 	if (ret) {

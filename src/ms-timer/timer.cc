@@ -52,6 +52,7 @@ TimerNode::TimerNode(const RequestAddTimer *request, const timespec *now) {
 }
 
 void TimerNode::OnTimeout(const timespec *now) {
+	(void)now;
 	// dispatch timeout message to register service
 	skynet_message message;
 	message.source = 0;

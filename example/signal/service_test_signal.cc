@@ -43,6 +43,9 @@ void TestSignal::RunCmd(const char *cmd, const char *parm) {
 
 static int
 _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
+	(void)session;
+	(void)source;
+	(void)msg;
 	TestSignal *app = (TestSignal *)ud;
 	switch(type) {
 	case PTYPE_SIGNAL:

@@ -67,6 +67,10 @@ void TestMSTimer::OnCallback(int session) {
 
 static int
 _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
+	(void)ctx;
+	(void)source;
+	(void)msg;
+	(void)sz;
 	TestMSTimer *app = (TestMSTimer *)ud;
 	switch(type) {
 	case PTYPE_MSTIMER:

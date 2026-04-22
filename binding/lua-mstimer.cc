@@ -11,6 +11,7 @@ static int lb_InitPoller(lua_State *L) {
 }
 
 static int lb_ExitPoller(lua_State *L) {
+	(void)L;
 	skynet_ext::ms_timer::ExitPoller();
 	return 0;
 }
