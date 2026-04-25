@@ -94,7 +94,7 @@ int FSNotifyManager::Init(skynet_context *ctx) {
 
 void FSNotifyManager::addWatchPath(uint32_t service_handle, const std::string& watch_path, uint32_t watch_events) {
 	if (watch_events == 0 || (watch_events & ~kWatchEventsMask)) {
-		skynet_error(ctx_, "fsnotify: addWatchPath unknown events, service: %x path: %s events: %u", service_handle, watch_path.c_str(), watch_events);
+		skynet_error(ctx_, "fsnotify: addWatchPath unknown events, service: %08x path: %s events: %08x", service_handle, watch_path.c_str(), watch_events);
 		return;
 	}
 	if (watchers_.find(watch_path) == watchers_.end()) {
@@ -108,19 +108,19 @@ void FSNotifyManager::addWatchPath(uint32_t service_handle, const std::string& w
 		skynet_error(ctx_, "fsnotify: inotify_add_watch succ, path: %s wd: %d", watch_path.c_str(), wd);
 	}
 	watchers_[watch_path].services_[service_handle] = watch_events;
-	skynet_error(ctx_, "fsnotify: addWatchPath succ, service: %x path: %s events: %u", service_handle, watch_path.c_str(), watch_events);
+	skynet_error(ctx_, "fsnotify: addWatchPath succ, service: %08x path: %s events: %08x", service_handle, watch_path.c_str(), watch_events);
 }
 
 void FSNotifyManager::rmWatchPath(uint32_t service_handle, const std::string& watch_path) {
 	auto iter = watchers_.find(watch_path);
 	if (iter == watchers_.end()) {
-		skynet_error(ctx_, "fsnotify: rmWatchPath non-existent, service: %x path: %s", service_handle, watch_path.c_str());
+		skynet_error(ctx_, "fsnotify: rmWatchPath non-existent, service: %08x path: %s", service_handle, watch_path.c_str());
 		return;
 	}
 	auto& entry = iter->second;
 	int wd = entry.wd_;
 	int result = entry.services_.erase(service_handle);
-	skynet_error(ctx_, "fsnotify: rmWatchPath result: %d size: %zu, service: %x path: %s wd: %d", result, entry.services_.size(), service_handle, watch_path.c_str(), wd);
+	skynet_error(ctx_, "fsnotify: rmWatchPath result: %d size: %zu, service: %08x path: %s wd: %d", result, entry.services_.size(), service_handle, watch_path.c_str(), wd);
 	if (!entry.services_.empty()) {
 		return;
 	}
@@ -164,6 +164,7 @@ void FSNotifyManager::dispatchInotifyEvent(const inotify_event *ev, size_t data_
 
 	auto entry_iter = watchers_.find(watch_path);
 	if (entry_iter == watchers_.end()) {
+		skynet_error(ctx_, "fsnotify: watch entry not find, wd: %d events: %08x path: %s", ev->wd, ev->mask, watch_path.c_str());
 		return;
 	}
 	const auto& service_map = entry_iter->second.services_;
@@ -266,10 +267,10 @@ void FSNotifyManager::DispatchCommand(uint32_t source, const char* msg, int sz) 
 		rmWatchService(source);
 		return;
 	}
-	skynet_error(ctx_, "fsnotify: unknown command from %x, size: %d", source, sz);
+	skynet_error(ctx_, "fsnotify: unknown command from %08x, size: %d", source, sz);
 }
 
-static FSNotifyManager *fsnotify_mgr = nullptr; 
+static FSNotifyManager *fsnotify_mgr = nullptr;
 
 static int
 _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const void *msg, size_t sz) {
