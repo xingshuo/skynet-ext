@@ -68,6 +68,7 @@ FSNotifyManager::~FSNotifyManager() {
 		close(inotify_fd_);
 		inotify_fd_ = -1;
 	}
+	skynet_error(ctx_, "fsnotify: dtor");
 }
 
 int FSNotifyManager::Init(skynet_context *ctx) {
@@ -267,7 +268,31 @@ void FSNotifyManager::DispatchCommand(uint32_t source, const char* msg, int sz) 
 		rmWatchService(source);
 		return;
 	}
+	if (cmd == "OutputWatchInfo") {
+		outputWatchInfo();
+		return;
+	}
 	skynet_error(ctx_, "fsnotify: unknown command from %08x, size: %d", source, sz);
+}
+
+void FSNotifyManager::outputWatchInfo() {
+	skynet_error(ctx_, "fsnotify: ----output watch info begin----");
+	skynet_error(ctx_, "fsnotify: watch_path -> {wd, {service_handle -> watch_events}}");
+	for (const auto& iter : watchers_) {
+		const std::string& path = iter.first;
+		const WatchEntry& entry = iter.second;
+		skynet_error(ctx_, "fsnotify: watch path: %s wd: %d", path.c_str(), entry.wd_);
+		for (const auto& sub_iter : entry.services_) {
+			skynet_error(ctx_, "fsnotify:   watch service: %08x events: %08x", sub_iter.first, sub_iter.second);
+		}
+	}
+	skynet_error(ctx_, "fsnotify: wd -> watch_path");
+	for (const auto& iter : wd_paths_) {
+		int wd = iter.first;
+		const std::string& path = iter.second;
+		skynet_error(ctx_, "fsnotify: wd: %d watch path: %s", wd, path.c_str());
+	}
+	skynet_error(ctx_, "fsnotify: ----output watch info end----");
 }
 
 static FSNotifyManager *fsnotify_mgr = nullptr;
@@ -308,11 +333,10 @@ extern "C" int
 fsnotify_init(FSNotifyManager *mgr, skynet_context *ctx, char *parm) {
 	(void)parm;
 	assert(mgr == fsnotify_mgr);
-	int ret = fsnotify_mgr->Init(ctx);
-	if (ret) {
+	if (fsnotify_mgr->Init(ctx) != ErrCode::OK) {
 		delete fsnotify_mgr;
 		fsnotify_mgr = nullptr;
-		return ret;
+		return -1;
 	}
 	skynet_callback(ctx, fsnotify_mgr, _cb);
 	skynet_handle_namehandle(skynet_context_handle(ctx), "fsnotify");

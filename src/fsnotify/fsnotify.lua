@@ -53,4 +53,8 @@ function M.UnregisterAllHandlers()
 	Skynet.send(".fsnotify", "fsnotify", "RmWatchService")
 end
 
+function M.OutputWatchInfo()
+	Skynet.send(".fsnotify", "fsnotify", "OutputWatchInfo")
+end
+
 return M

@@ -15,5 +15,9 @@ Skynet.start(function()
 	Skynet.newservice("test_watcher", 2)
 	Skynet.newservice("test_watcher", 3)
 
+	-- 退出fsnotify服务
+	Skynet.kill(".fsnotify")
+	Skynet.sleep(100)
+
 	Skynet.exit()
 end)

@@ -29,6 +29,7 @@ private:
 	void addWatchPath(uint32_t service_handle, const std::string& watch_path, uint32_t watch_events);
 	void rmWatchPath(uint32_t service_handle, const std::string& watch_path);
 	void rmWatchService(uint32_t service_handle);
+	void outputWatchInfo();
 
 private:
 	struct WatchEntry {

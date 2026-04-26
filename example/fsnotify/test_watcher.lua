@@ -1,4 +1,5 @@
 local Skynet = require "skynet"
+require "skynet.manager"
 local FSNotify = require "fsnotify"
 local Lfsnotify = require "lfsnotify"
 
@@ -51,6 +52,9 @@ Skynet.start(function()
 
 	-- 等 svc1/svc2 的 AddWatchPath 消息先抵达 fsnotify
 	Skynet.sleep(30)
+	-- 输出 DebugInfo
+	FSNotify.OutputWatchInfo()
+	Skynet.sleep(30)
 
 	local file = SHARED_DIR .. "/shared.txt"
 	-- 期望: svc1 收到, svc3 收到; svc2 不收 (只订阅 DELETE)
@@ -71,6 +75,8 @@ Skynet.start(function()
 	-- 验证 UnregisterHandler: svc 3 注销 SHARED_DIR, 之后事件只有 svc1/svc2 才可能收到
 	Skynet.error("[svc 3] UnregisterHandler, next events should NOT go to svc 3")
 	FSNotify.UnregisterHandler(SHARED_DIR)
+	-- 输出 DebugInfo
+	FSNotify.OutputWatchInfo()
 	Skynet.sleep(30)
 	os.execute("touch " .. file)   -- svc1 应收到
 	Skynet.sleep(30)
@@ -83,6 +89,9 @@ Skynet.start(function()
 	Skynet.sleep(30)
 
 	-- 清理目录
+	Skynet.error("[svc 3] ----- produce DELETE DIR -----")
 	os.execute("rm -rf " .. SHARED_DIR)
+	Skynet.sleep(100)
+
 	Skynet.error("[svc 3] test done")
 end)

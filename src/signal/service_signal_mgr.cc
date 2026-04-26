@@ -236,11 +236,10 @@ extern "C" int
 signal_mgr_init(SignalMngr *mgr, skynet_context *ctx, char *parm) {
 	(void)parm;
 	assert(mgr == signal_mgr);
-	int ret = signal_mgr->Init(ctx);
-	if (ret) {
+	if (signal_mgr->Init(ctx) != ErrCode::OK) {
 		delete signal_mgr;
 		signal_mgr = nullptr;
-		return ret;
+		return -1;
 	}
 	skynet_callback(ctx, signal_mgr, _cb);
 	skynet_handle_namehandle(skynet_context_handle(ctx), "signal-mgr");
