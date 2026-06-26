@@ -36,7 +36,6 @@ SignalMngr::SignalMngr() {
 SignalMngr::~SignalMngr() {
 	skynet_error(ctx, "signal-mgr: dtor %p", this);
 	std::vector<uint32_t> watchers;
-	watchers.clear();
 	for (auto iter = handlers.begin(); iter != handlers.end(); iter++) {
 		uint32_t service_handle = iter->first;
 		watchers.push_back(service_handle);
@@ -69,11 +68,15 @@ int SignalMngr::Init(skynet_context *ctx) {
 	flags < 0 ? flags = O_NONBLOCK : flags |= O_NONBLOCK;
 	if (fcntl(pipe_fds[1], F_SETFL, flags) < 0) {
 		skynet_error(ctx, "signal-mgr: fcntl pipe write fd(%d) noblocking error %s", pipe_fds[1], strerror(errno));
+		close(pipe_fds[0]);
+		close(pipe_fds[1]);
 		return ErrCode::FD_SET_NONBLOCK_ERROR;
 	}
 	int id = skynet_socket_bind(ctx, pipe_fds[0]);
 	if (id < 0) {
 		skynet_error(ctx, "signal-mgr: skynet socket bind error fd(%d)", pipe_fds[0]);
+		close(pipe_fds[0]);
+		close(pipe_fds[1]);
 		return ErrCode::SKYNET_SOCKET_BIND_ERROR;
 	}
 	skynet_error(ctx, "signal-mgr: skynet socket bind pipe readfd %d to %d", pipe_fds[0], id);
