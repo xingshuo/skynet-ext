@@ -70,7 +70,7 @@ public:
 	void DebugInfo();
 
 private:
-	std::unordered_map<uint32_t, SignalHandler*> handlers;
+	std::unordered_map<uint32_t, SignalHandler> handlers;
 	int64_t ref[kSigMax + 1];
 	skynet_context *ctx;
 	int pipe_rd;

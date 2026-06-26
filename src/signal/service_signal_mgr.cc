@@ -1,5 +1,6 @@
 #include "signal/service_signal_mgr.h"
 #include "signal/common.h"
+#include <cinttypes>
 
 namespace skynet_ext {
 namespace signal {
@@ -8,6 +9,19 @@ static SignalMngr *signal_mgr = nullptr;
 
 static void signal_handler(int sig) {
 	signal_mgr->OnSignalNotify(sig);
+}
+
+// 用 sigaction 安装/复位信号处理,行为不依赖 feature-test 宏,在 CentOS7 与 Debian12 上一致:
+// - SA_RESTART:被信号打断的慢系统调用自动重启,避免 EINTR
+// - sigfillset(sa_mask):处理期间屏蔽其他信号,处理函数不被重入
+// 这规避了 signal() 在 -std=c++17(strict)下可能退化为 System V 语义(handler 触发一次后被复位)的风险
+static void install_handler(int sig, void (*handler)(int)) {
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = handler;
+	sigfillset(&sa.sa_mask);
+	sa.sa_flags = (handler == SIG_DFL) ? 0 : SA_RESTART;
+	sigaction(sig, &sa, nullptr);
 }
 
 SignalMngr::SignalMngr() {
@@ -76,19 +90,12 @@ int SignalMngr::RegisterWatcher(uint32_t service_handle, int sig) {
 		skynet_error(ctx, "signal-mgr: register watcher error, [:%08x] sig:%d", service_handle, sig);
 		return ErrCode::SIGNAL_NUM_ERROR;
 	}
-	SignalHandler *h = nullptr;
-	auto iter = handlers.find(service_handle);
-	if (iter == handlers.end()) {
-		h = new SignalHandler;
-		handlers[service_handle] = h;
-	} else {
-		h = iter->second;
-	}
-	if (!h->Get(sig)) {
-		h->Set(sig);
+	SignalHandler &h = handlers[service_handle]; // 不存在则默认构造(mask_ = 0)
+	if (!h.Get(sig)) {
+		h.Set(sig);
 		skynet_error(ctx, "signal-mgr: set signal mask %d, [:%08x]", sig, service_handle);
 		if (ref[sig]++ == 0) {
-			std::signal(sig, signal_handler);
+			install_handler(sig, signal_handler);
 			skynet_error(ctx, "signal-mgr: set signal handler %d, [:%08x]", sig, service_handle);
 		}
 	}
@@ -101,46 +108,48 @@ void SignalMngr::UnregisterWatcher(uint32_t service_handle, int sig) {
 	if (iter == handlers.end()) {
 		return;
 	}
-	SignalHandler *h = iter->second;
+	SignalHandler &h = iter->second;
 	if (sig == 0) { // 注销全部
-		handlers.erase(service_handle);
+		// 注意:先复位信号引用计数,再 erase(erase 会使引用 h 失效)
 		for (int n = kSigMin; n <= kSigMax; n++) {
-			if (h->Get(n)) {
+			if (h.Get(n)) {
 				skynet_error(ctx, "signal-mgr: clear signal mask %d, [:%08x], 0", n, service_handle);
 				if (--ref[n] == 0) {
-					std::signal(n, SIG_DFL);
+					install_handler(n, SIG_DFL);
 					skynet_error(ctx, "signal-mgr: set signal default %d, [:%08x], 0", n, service_handle);
 				}
 			}
 		}
-		delete h;
+		handlers.erase(iter);
 		skynet_error(ctx, "signal-mgr: delete watcher [:%08x], 0", service_handle);
 	} else {
 		if (sig < kSigMin || sig > kSigMax) {
 			skynet_error(ctx, "signal-mgr: unregister watcher error, [:%08x] sig:%d", service_handle, sig);
 			return;
 		}
-		if (h->Get(sig)) {
-			h->Clear(sig);
+		if (h.Get(sig)) {
+			h.Clear(sig);
 			skynet_error(ctx, "signal-mgr: clear signal mask %d, [:%08x]", sig, service_handle);
 			if (--ref[sig] == 0) {
-				std::signal(sig, SIG_DFL);
+				install_handler(sig, SIG_DFL);
 				skynet_error(ctx, "signal-mgr: set signal default %d, [:%08x]", sig, service_handle);
 			}
 		}
-		if (h->IsEmpty()) {
-			handlers.erase(service_handle);
-			delete h;
+		if (h.IsEmpty()) {
+			handlers.erase(iter);
 			skynet_error(ctx, "signal-mgr: delete watcher [:%08x]", service_handle);
 		}
 	}
 }
 
 void SignalMngr::OnSignalNotify(int sig) {
+	// 信号处理函数会异步打断任意线程,需保存/恢复 errno,避免污染被打断代码的 errno
+	int saved_errno = errno;
 	if (pipe_wr != -1) {
 		uint8_t n = static_cast<uint8_t>(sig);
-		write(pipe_wr, &n, sizeof(n));
+		(void)write(pipe_wr, &n, sizeof(n)); // 管道满/被打断时静默丢弃,高频信号可能合并
 	}
+	errno = saved_errno;
 }
 
 void SignalMngr::DispatchToWatchers(skynet_context *ctx, int sig) {
@@ -150,8 +159,8 @@ void SignalMngr::DispatchToWatchers(skynet_context *ctx, int sig) {
 	}
 	for (auto iter = handlers.begin(); iter != handlers.end(); iter++) {
 		uint32_t service_handle = iter->first;
-		SignalHandler *h = iter->second;
-		if (h->Get(sig)) {
+		SignalHandler &h = iter->second;
+		if (h.Get(sig)) {
 			struct skynet_message message;
 			message.source = skynet_context_handle(ctx);
 			message.session = 0;
@@ -167,8 +176,8 @@ void SignalMngr::DebugInfo() {
 	skynet_error(ctx, "signal-mgr: -----debug info start-----");
 	for (auto iter = handlers.begin(); iter != handlers.end(); iter++) {
 		uint32_t service_handle = iter->first;
-		SignalHandler *h = iter->second;
-		skynet_error(ctx, "signal-mgr: [:%08x] sigmask :%016x", service_handle, h->Mask());
+		SignalHandler &h = iter->second;
+		skynet_error(ctx, "signal-mgr: [:%08x] sigmask :%016" PRIx64, service_handle, h.Mask());
 	}
 	skynet_error(ctx, "signal-mgr: -----debug info end-----");
 }
@@ -182,9 +191,9 @@ _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const
 	case PTYPE_SOCKET: {
 		const skynet_socket_message *sm = static_cast<const skynet_socket_message *>(msg);
 		if (sm->type == SKYNET_SOCKET_TYPE_DATA && sm->id == mgr->ReadSocketId()) {
-			const char *buf = sm->buffer;
-			int sz = sm->ud;
-			for (int i = 0; i < sz; i++) {
+			const unsigned char *buf = reinterpret_cast<const unsigned char *>(sm->buffer);
+			int len = sm->ud;
+			for (int i = 0; i < len; i++) {
 				int sig = static_cast<int>(buf[i]);
 				mgr->DispatchToWatchers(ctx, sig);
 			}
@@ -200,13 +209,17 @@ _cb(skynet_context *ctx, void *ud, int type, int session, uint32_t source, const
 				break;
 			}
 		}
-		if (std::memcmp(command,"RegisterWatcher",i) == 0) {
+		// 注意:必须比较 token 长度,否则 memcmp 只比较前 i 字节会把前缀误判为命中
+		auto match = [&](const char *kw) {
+			return (size_t)i == std::strlen(kw) && std::memcmp(command, kw, i) == 0;
+		};
+		if (match("RegisterWatcher")) {
 			int sig = strtol(command+i+1, NULL, 10);
 			mgr->RegisterWatcher(source, sig);
-		} else if (std::memcmp(command,"UnregisterWatcher",i) == 0) {
+		} else if (match("UnregisterWatcher")) {
 			int sig = strtol(command+i+1, NULL, 10);
 			mgr->UnregisterWatcher(source, sig);
-		} else if (std::memcmp(command,"DebugInfo",i) == 0) {
+		} else if (match("DebugInfo")) {
 			mgr->DebugInfo();
 		} else {
 			skynet_error(ctx, "signal-mgr: unknown command %s", command);
